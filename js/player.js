@@ -130,7 +130,6 @@ async function renderMoviePlayer() {
                 <div class="player-header">
                     <button class="btn-back" onclick="history.back()">${getIcon('back', 24)}</button>
                     <h2>${item.title}</h2>
-                    <a href="${videoUrl}" target="_blank" rel="noopener" class="btn-primary" style="margin-left:auto">Abrir no d.tube</a>
                     ${user ? `<button class="btn-watched ${watchedState ? 'active' : ''}" id="player-watched-btn-${item.id}" onclick="window.togglePlayerWatched('${item.id}')">${getIcon('check', 20)}</button>` : ''}
                 </div>
                 <iframe src="${embedUrl}" allow="autoplay; fullscreen" allowfullscreen style="width:100%;height:100%;border:0;flex:1;"></iframe>
@@ -213,6 +212,7 @@ async function renderEpisodePlayer() {
     const { data: episodes } = await fetchEpisodes(episode.season_id);
     const currentIndex = episodes.findIndex(ep => ep.id === episode.id);
     const nextEpisode = episodes[currentIndex + 1] || null;
+    const catalogId = episode.catalog_id;
 
     const videoUrl = episode.video_url || '';
     if (isDTubeUrl(videoUrl)) {
@@ -223,7 +223,6 @@ async function renderEpisodePlayer() {
                 <div class="player-header">
                     <button class="btn-back" onclick="history.back()">${getIcon('back', 24)}</button>
                     <h2>${season?.catalog?.title || ''} - ${episode.title}</h2>
-                    <a href="${videoUrl}" target="_blank" rel="noopener" class="btn-primary" style="margin-left:auto">Abrir no d.tube</a>
                     ${user ? `<button class="btn-watched ${watchedState ? 'active' : ''}" id="player-watched-btn-${episode.id}" onclick="window.togglePlayerWatched('${episode.catalog_id}', '${episode.id}')">${getIcon('check', 20)}</button>` : ''}
                 </div>
                 <iframe src="${embedUrl}" allow="autoplay; fullscreen" allowfullscreen style="width:100%;height:100%;border:0;flex:1;"></iframe>
@@ -245,20 +244,60 @@ async function renderEpisodePlayer() {
             <div class="player-header">
                 <button class="btn-back" onclick="history.back()">${getIcon('back', 24)}</button>
                 <h2>${season?.catalog?.title || ''} - ${episode.title}</h2>
-                <a href="${videoUrl}" target="_blank" rel="noopener" class="btn-primary" style="margin-left:auto">Abrir vídeo</a>
-                    ${user ? `<button class="btn-watched" id="player-watched-btn-${episode.id}" onclick="window.togglePlayerWatched('${episode.catalog_id}', '${episode.id}')">${getIcon('check', 20)}</button>` : ''}
+                ${user ? `<button class="btn-watched" id="player-watched-btn-${episode.id}" onclick="window.togglePlayerWatched('${episode.catalog_id}', '${episode.id}')">${getIcon('check', 20)}</button>` : ''}
             </div>
             <video id="main-player" controls autoplay playsinline></video>
             <div id="player-fallback"></div>
             <div class="player-controls">
                 ${nextEpisode ? `<button class="btn-primary" id="next-ep-btn">Próximo Episódio</button>` : ''}
             </div>
+            <div class="episodes-list-section">
+                <h3>Episódios</h3>
+                <div class="episodes-list" id="episodes-list"></div>
+            </div>
         </div>
     `;
 
     const video = document.getElementById('main-player');
     const fallbackContainer = document.getElementById('player-fallback');
+    const episodesList = document.getElementById('episodes-list');
     console.log('renderEpisodePlayer: video_url do episódio:', videoUrl);
+    
+    // Preencher lista de episódios
+    if (episodesList && episodes) {
+        const watchedStates = {};
+        if (user) {
+            for (const ep of episodes) {
+                const watched = await isWatched(user.id, episode.catalog_id, ep.id);
+                watchedStates[ep.id] = watched;
+            }
+        }
+        
+        episodesList.innerHTML = episodes.map(ep => {
+            const isCurrent = ep.id === episode.id;
+            const epCode = `S${season?.season_number || 1}E${ep.episode_number}`;
+            const isWatched = watchedStates[ep.id] || false;
+            return `
+                <div class="episode-item ${isCurrent ? 'current' : ''}" data-episode-id="${ep.id}">
+                    <div class="episode-info">
+                        <span class="episode-code">${epCode}</span>
+                        <span class="episode-title">${ep.title || `Episódio ${ep.episode_number}`}</span>
+                    </div>
+                    <div class="episode-actions">
+                        <button class="btn-play-ep" onclick="navigate('#/assistir/episode/${ep.id}')" ${isCurrent ? 'disabled' : ''}>
+                            ${getIcon('play', 16)}
+                        </button>
+                        ${user ? `
+                            <button class="btn-watched-ep ${isWatched ? 'active' : ''}" onclick="window.toggleEpisodeWatched('${catalogId}', '${ep.id}')">
+                                ${getIcon('check', 16)}
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+    
     if (videoUrl) {
         initPlayer(video, videoUrl);
         setTimeout(() => {
@@ -329,5 +368,23 @@ window.togglePlayerWatched = async function(catalogId, episodeId = null) {
     const btn = document.getElementById(btnId);
     if (btn) {
         btn.classList.toggle('active', watched);
+    }
+};
+
+window.toggleEpisodeWatched = async function(catalogId, episodeId) {
+    console.log('toggleEpisodeWatched chamado:', { catalogId, episodeId });
+    const user = await fetchCurrentUser();
+    if (!user) {
+        console.warn('toggleEpisodeWatched: usuário não encontrado');
+        return;
+    }
+    console.log('toggleEpisodeWatched: usuário encontrado:', user.id);
+    const result = await toggleWatched(user.id, catalogId, episodeId);
+    console.log('toggleEpisodeWatched: resultado toggleWatched:', result);
+    const { watched } = result;
+    const btn = document.querySelector(`.episode-item[data-episode-id="${episodeId}"] .btn-watched-ep`);
+    if (btn) {
+        btn.classList.toggle('active', watched);
+        console.log('toggleEpisodeWatched: botão atualizado:', watched);
     }
 };

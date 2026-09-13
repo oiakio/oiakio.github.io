@@ -202,9 +202,11 @@ async function openDetailModal(catalogId) {
                             <h4>Temporada ${s.season_number}</h4>
                             <div class="episodes-list">
                                 ${s.episodes.map(ep => `
-                                    <div class="episode-item" onclick="navigate('#/assistir/episode/${ep.id}')">
+                                    <div class="episode-item" data-episode-id="${ep.id}">
                                         <span class="episode-number">${ep.episode_number}</span>
                                         <span class="episode-title">${ep.title || 'Episódio'}</span>
+                                        ${ep.video_url ? `<button class="btn-play" onclick="navigate('#/assistir/episode/${ep.id}')">${getIcon('play', 16)}</button>` : ''}
+                                        <button class="btn-watched-episode" id="watched-ep-btn-${ep.id}" onclick="toggleEpisodeWatched('${item.id}', '${ep.id}')">${getIcon('check', 16)}</button>
                                     </div>
                                 `).join('') || '<p>Nenhum episódio</p>'}
                             </div>
@@ -300,6 +302,21 @@ async function openDetailModal(catalogId) {
             await updateLikeButton(item.id, likedState);
             const dislikedState = await isDisliked(user.id, item.id);
             await updateDislikeButton(item.id, dislikedState);
+            
+            // Atualizar botões de episódios vistos
+            if (isSeries) {
+                const { data: seasons } = await fetchSeasons(item.id);
+                for (const season of (seasons || [])) {
+                    const { data: episodes } = await fetchEpisodes(season.id);
+                    for (const ep of (episodes || [])) {
+                        const epWatched = await isWatched(user.id, item.id, ep.id);
+                        const btn = document.getElementById(`watched-ep-btn-${ep.id}`);
+                        if (btn) {
+                            btn.classList.toggle('active', epWatched);
+                        }
+                    }
+                }
+            }
         } catch (err) {
             console.warn('Erro ao atualizar botões:', err);
         }
@@ -432,8 +449,34 @@ async function updateWatchlistButton(catalogId, forceState = null) {
 async function toggleItemWatched(catalogId) {
     const user = await fetchCurrentUser();
     if (!user) return;
+    
+    // Verificar se é série/anime
+    const { data: item } = await fetchCatalogById(catalogId);
+    const isSeries = item && (item.content_type === 'tv' || item.content_type === 'anime');
+    
     const { watched } = await toggleWatched(user.id, catalogId);
     updateWatchedButton(catalogId, watched);
+    
+    // Se for série/anime, marcar/desmarcar todos os episódios
+    if (isSeries && item) {
+        const { data: seasons } = await fetchSeasons(catalogId);
+        for (const season of (seasons || [])) {
+            const { data: episodes } = await fetchEpisodes(season.id);
+            for (const ep of (episodes || [])) {
+                if (watched) {
+                    await markAsWatched(user.id, catalogId, ep.id);
+                } else {
+                    await unmarkAsWatched(user.id, catalogId, ep.id);
+                }
+                // Atualizar botão do episódio se estiver visível
+                const epBtn = document.getElementById(`watched-ep-btn-${ep.id}`);
+                if (epBtn) {
+                    epBtn.classList.toggle('active', watched);
+                }
+            }
+        }
+    }
+    
     if (watched && await isWatchlisted(user.id, catalogId)) {
         await toggleWatchlist(user.id, catalogId);
         updateWatchlistButton(catalogId, false);
@@ -538,3 +581,16 @@ window.toggleItemDislike = toggleItemDislike;
 window.toggleItemLike = toggleItemLike;
 window.updateLikeButton = updateLikeButton;
 window.updateAllCatalogButtons = updateAllCatalogButtons;
+
+async function toggleEpisodeWatched(episodeId, catalogId) {
+    const user = await fetchCurrentUser();
+    if (!user) return;
+    
+    const { watched } = await toggleWatched(user.id, catalogId, episodeId);
+    const btn = document.getElementById(`watched-ep-btn-${episodeId}`);
+    if (btn) {
+        btn.classList.toggle('active', watched);
+    }
+}
+
+window.toggleEpisodeWatched = toggleEpisodeWatched;

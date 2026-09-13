@@ -519,6 +519,169 @@ async function fetchAllCatalog() {
 }
 
 // ============================================
+// RANKINGS
+// ============================================
+
+async function fetchMostWatched(limit = 10) {
+    const db = getSupabase();
+    if (!db) return { data: [], error: 'Supabase não inicializado' };
+    
+    const { data, error } = await db
+        .from('watched')
+        .select('catalog_id, catalog!inner(title, poster, content_type, release_year)')
+        .order('watched_at', { ascending: false })
+        .limit(limit * 10);
+    
+    if (error) return { data: [], error };
+    
+    const counts = {};
+    const catalogMap = {};
+    (data || []).forEach(w => {
+        if (!counts[w.catalog_id]) {
+            counts[w.catalog_id] = 0;
+            catalogMap[w.catalog_id] = w.catalog;
+        }
+        counts[w.catalog_id]++;
+    });
+    
+    const sorted = Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, limit)
+        .map(([id, count]) => ({
+            ...catalogMap[id],
+            watch_count: count
+        }));
+    
+    return { data: sorted, error: null };
+}
+
+async function fetchMostFavorited(limit = 10) {
+    const db = getSupabase();
+    if (!db) return { data: [], error: 'Supabase não inicializado' };
+    
+    const { data, error } = await db
+        .from('favorites')
+        .select('catalog_id, catalog!inner(title, poster, content_type, release_year)')
+        .order('created_at', { ascending: false })
+        .limit(limit * 10);
+    
+    if (error) return { data: [], error };
+    
+    const counts = {};
+    const catalogMap = {};
+    (data || []).forEach(f => {
+        if (!counts[f.catalog_id]) {
+            counts[f.catalog_id] = 0;
+            catalogMap[f.catalog_id] = f.catalog;
+        }
+        counts[f.catalog_id]++;
+    });
+    
+    const sorted = Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, limit)
+        .map(([id, count]) => ({
+            ...catalogMap[id],
+            fav_count: count
+        }));
+    
+    return { data: sorted, error: null };
+}
+
+async function fetchMostLiked(limit = 10) {
+    const db = getSupabase();
+    if (!db) return { data: [], error: 'Supabase não inicializado' };
+    
+    const { data, error } = await db
+        .from('likes')
+        .select('catalog_id, catalog!inner(title, poster, content_type, release_year)')
+        .order('created_at', { ascending: false })
+        .limit(limit * 10);
+    
+    if (error) return { data: [], error };
+    
+    const counts = {};
+    const catalogMap = {};
+    (data || []).forEach(l => {
+        if (!counts[l.catalog_id]) {
+            counts[l.catalog_id] = 0;
+            catalogMap[l.catalog_id] = l.catalog;
+        }
+        counts[l.catalog_id]++;
+    });
+    
+    const sorted = Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, limit)
+        .map(([id, count]) => ({
+            ...catalogMap[id],
+            like_count: count
+        }));
+    
+    return { data: sorted, error: null };
+}
+
+async function fetchMostDisliked(limit = 10) {
+    const db = getSupabase();
+    if (!db) return { data: [], error: 'Supabase não inicializado' };
+    
+    const { data, error } = await db
+        .from('dislikes')
+        .select('catalog_id, catalog!inner(title, poster, content_type, release_year)')
+        .order('created_at', { ascending: false })
+        .limit(limit * 10);
+    
+    if (error) return { data: [], error };
+    
+    const counts = {};
+    const catalogMap = {};
+    (data || []).forEach(d => {
+        if (!counts[d.catalog_id]) {
+            counts[d.catalog_id] = 0;
+            catalogMap[d.catalog_id] = d.catalog;
+        }
+        counts[d.catalog_id]++;
+    });
+    
+    const sorted = Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, limit)
+        .map(([id, count]) => ({
+            ...catalogMap[id],
+            dislike_count: count
+        }));
+    
+    return { data: sorted, error: null };
+}
+
+async function fetchLatestContent(limit = 10) {
+    const db = getSupabase();
+    if (!db) return { data: [], error: 'Supabase não inicializado' };
+    
+    const { data, error } = await db
+        .from('catalog')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+    
+    return { data: data || [], error };
+}
+
+async function fetchLatestEpisodes(limit = 10) {
+    const db = getSupabase();
+    if (!db) return { data: [], error: 'Supabase não inicializado' };
+    
+    const { data, error } = await db
+        .from('episodes')
+        .select('*, catalog!inner(title, poster, content_type), season(season_number)')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+    
+    return { data: data || [], error };
+}
+
+// ============================================
 // VISTOS
 // ============================================
 
@@ -530,6 +693,63 @@ async function fetchWatched(userId) {
         .select('catalog_id, episode_id, watched_at, catalog(content_type, title, poster, release_year, synopsis, genres, directors, writers, cast_members, is_active)')
         .eq('user_id', userId)
         .order('watched_at', { ascending: false });
+    
+    // Buscar episódios e temporadas separadamente para evitar erro no join
+    if (data && data.length > 0) {
+        const episodeIds = data.filter(w => w.episode_id).map(w => w.episode_id);
+        if (episodeIds.length > 0) {
+            let query = db
+                .from('episodes')
+                .select('*');
+            
+            if (episodeIds.length === 1) {
+                query = query.eq('id', episodeIds[0]);
+            } else {
+                query = query.in('id', episodeIds);
+            }
+            
+            const { data: episodes, error: epError } = await query;
+            
+            if (epError) {
+                console.error('Erro ao buscar episódios:', epError);
+            } else if (episodes && episodes.length > 0) {
+                // Buscar temporadas para obter season_number
+                const seasonIds = [...new Set(episodes.map(ep => ep.season_id))];
+                let seasonQuery = db.from('seasons').select('*');
+                
+                if (seasonIds.length === 1) {
+                    seasonQuery = seasonQuery.eq('id', seasonIds[0]);
+                } else {
+                    seasonQuery = seasonQuery.in('id', seasonIds);
+                }
+                
+                const { data: seasons } = await seasonQuery;
+                
+                // Mapear temporadas por ID
+                const seasonMap = {};
+                (seasons || []).forEach(s => {
+                    seasonMap[s.id] = s;
+                });
+                
+                // Mapear episódios por ID com dados da temporada
+                const episodeMap = {};
+                episodes.forEach(ep => {
+                    episodeMap[ep.id] = {
+                        ...ep,
+                        season: seasonMap[ep.season_id] || null
+                    };
+                });
+                
+                // Adicionar dados do episódio aos resultados
+                data.forEach(w => {
+                    if (w.episode_id && episodeMap[w.episode_id]) {
+                        w.episode = episodeMap[w.episode_id];
+                    }
+                });
+            }
+        }
+    }
+    
     return { data: data || [], error };
 }
 
@@ -581,6 +801,9 @@ async function toggleWatched(userId, catalogId, episodeId = null) {
     const db = getSupabase();
     if (!db) return { watched: false, error: 'Supabase não inicializado' };
 
+    console.log('toggleWatched chamado com:', { userId, catalogId, episodeId });
+
+    // Verificar se já existe
     let query = db
         .from('watched')
         .select('id')
@@ -599,16 +822,38 @@ async function toggleWatched(userId, catalogId, episodeId = null) {
         console.warn('toggleWatched erro ao verificar existência:', fetchError);
     }
 
+    console.log('toggleWatched: registros existentes:', existing);
+
     const hasExisting = existing && existing.length > 0;
 
     if (hasExisting) {
+        // Deletar existente
         const ids = existing.map(row => row.id);
+        console.log('toggleWatched: deletando registros:', ids);
         const { error } = await db.from('watched').delete().in('id', ids);
-        return { watched: false, error };
+        if (error) {
+            console.warn('toggleWatched erro ao deletar:', error);
+            return { watched: false, error };
+        }
+        console.log('toggleWatched: deletado com sucesso');
+        return { watched: false, error: null };
     }
 
-    const { error } = await db.from('watched').insert([{ user_id: userId, catalog_id: catalogId, episode_id: episodeId }]);
-    return { watched: true, error };
+    // Inserir novo
+    console.log('toggleWatched: inserindo novo registro');
+    const { error: insertError } = await db.from('watched').insert([{ 
+        user_id: userId, 
+        catalog_id: catalogId, 
+        episode_id: episodeId
+    }]);
+    
+    if (insertError) {
+        console.warn('toggleWatched erro ao inserir:', insertError);
+        return { watched: false, error: insertError };
+    }
+    
+    console.log('toggleWatched: inserido com sucesso');
+    return { watched: true, error: null };
 }
 
 // ============================================

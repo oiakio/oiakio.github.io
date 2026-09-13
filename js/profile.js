@@ -48,15 +48,28 @@ async function loadProfileTab(tab, userId) {
 
     if (tab === 'watched') {
         const { data } = await fetchWatched(userId);
-        container.innerHTML = data?.length ? data.map(w => `
+        container.innerHTML = data?.length ? data.map(w => {
+            const isEpisode = w.episode_id !== null;
+            let displayTitle = w.catalog?.title || '';
+            
+            if (isEpisode && w.episode) {
+                // Obter número da temporada do objeto season
+                const seasonNum = w.episode.season?.season_number || 1;
+                const epNum = w.episode.episode_number || '';
+                const epTitle = w.episode.title || `Episódio ${epNum}`;
+                const epCode = `S${seasonNum.toString().padStart(2, '0')}E${epNum.toString().padStart(2, '0')}`;
+                displayTitle = `${w.catalog?.title} - ${epTitle} (${epCode})`;
+            }
+            
+            return `
             <div class="history-item" onclick="navigate('#/assistir/${w.episode_id ? 'episode' : 'movie'}/${w.episode_id || w.catalog_id}')">
-                <img src="${w.catalog?.poster || ''}" alt="${w.catalog?.title || ''}">
+                <img src="${w.catalog?.poster || ''}" alt="${displayTitle}">
                 <div>
-                    <h4>${w.catalog?.title || ''}</h4>
+                    <h4>${displayTitle}</h4>
                     <span>${formatDate(w.watched_at)}</span>
                 </div>
             </div>
-        `).join('') : '<p class="empty-msg">Nenhum conteúdo marcado como assistido ainda.</p>';
+        `}).join('') : '<p class="empty-msg">Nenhum conteúdo marcado como assistido ainda.</p>';
     } else if (tab === 'favorites') {
         const { data } = await fetchFavorites(userId);
         container.innerHTML = data?.length ? data.map(f => `

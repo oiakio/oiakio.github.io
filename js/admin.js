@@ -2,6 +2,25 @@
 // ADMIN
 // ============================================
 
+// Função utilitária para parsear formato S01E01
+function parseSeasonEpisode(code) {
+    const match = code.match(/S(\d+)E(\d+)/i);
+    if (match) {
+        return {
+            season: parseInt(match[1]),
+            episode: parseInt(match[2])
+        };
+    }
+    return null;
+}
+
+// Formata número para S01E01
+function formatSeasonEpisode(season, episode) {
+    const s = season.toString().padStart(2, '0');
+    const e = episode.toString().padStart(2, '0');
+    return `S${s}E${e}`;
+}
+
 async function renderAdmin() {
     const admin = await isAdmin();
     if (!admin) {
@@ -177,15 +196,22 @@ async function showAddContentModal() {
                 </div>
                 <div class="form-group">
                     <label>Tipo</label>
-                    <select id="new-type">
+                    <select id="new-type" onchange="toggleSeriesFields()">
                         <option value="movie">Filme</option>
                         <option value="tv">Série</option>
                         <option value="anime">Anime</option>
                     </select>
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="video-url-group">
                     <label>URL do Vídeo</label>
-                    <input type="url" id="new-video" required>
+                    <input type="url" id="new-video" placeholder="Deixe em branco para adicionar depois">
+                </div>
+                <div id="series-fields" style="display:none;">
+                    <div class="form-group">
+                        <label>Temporadas e Episódios</label>
+                        <div id="seasons-container"></div>
+                        <button type="button" class="btn-secondary" onclick="addSeasonField()">+ Adicionar Temporada</button>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Poster URL</label>
@@ -233,6 +259,70 @@ async function showAddContentModal() {
     modal.addEventListener('click', (e) => {
         if (e.target === modal) modal.remove();
     });
+
+    // Funções para gerenciar campos de série/anime
+    window.toggleSeriesFields = function() {
+        const type = document.getElementById('new-type').value;
+        const videoGroup = document.getElementById('video-url-group');
+        const seriesFields = document.getElementById('series-fields');
+        const videoInput = document.getElementById('new-video');
+
+        if (type === 'tv' || type === 'anime') {
+            videoGroup.style.display = 'none';
+            videoInput.removeAttribute('required');
+            seriesFields.style.display = 'block';
+        } else {
+            videoGroup.style.display = 'block';
+            videoInput.setAttribute('required', 'required');
+            seriesFields.style.display = 'none';
+        }
+    };
+
+    window.addSeasonField = function(seasonNum = null) {
+        const container = document.getElementById('seasons-container');
+        const seasonIndex = container.children.length + 1;
+        const seasonNumValue = seasonNum || seasonIndex;
+
+        const seasonDiv = document.createElement('div');
+        seasonDiv.className = 'season-field';
+        seasonDiv.dataset.seasonIndex = seasonIndex;
+        seasonDiv.innerHTML = `
+            <div class="season-header">
+                <label>Temporada ${seasonNumValue} (S${seasonNumValue.toString().padStart(2, '0')})</label>
+                <button type="button" class="btn-icon btn-danger" onclick="this.closest('.season-field').remove()">×</button>
+            </div>
+            <div class="episodes-container" id="episodes-container-${seasonIndex}"></div>
+            <button type="button" class="btn-secondary btn-sm" onclick="addEpisodeField(${seasonIndex})">+ Adicionar Episódio</button>
+        `;
+        container.appendChild(seasonDiv);
+    };
+
+    window.addEpisodeField = function(seasonIndex, episodeNum = null) {
+        const container = document.getElementById(`episodes-container-${seasonIndex}`);
+        const episodeIndex = container.children.length + 1;
+        const episodeNumValue = episodeNum || episodeIndex;
+
+        const episodeDiv = document.createElement('div');
+        episodeDiv.className = 'episode-field';
+        episodeDiv.innerHTML = `
+            <div class="episode-row">
+                <div class="form-group" style="flex:1;">
+                    <label>E${episodeNumValue.toString().padStart(2, '0')}</label>
+                    <input type="text" class="episode-code" placeholder="S01E01" value="S${seasonIndex.toString().padStart(2, '0')}E${episodeNumValue.toString().padStart(2, '0')}" data-season="${seasonIndex}" data-episode="${episodeNumValue}">
+                </div>
+                <div class="form-group" style="flex:2;">
+                    <label>Título</label>
+                    <input type="text" class="episode-title" placeholder="Título do episódio">
+                </div>
+                <div class="form-group" style="flex:3;">
+                    <label>URL do Vídeo</label>
+                    <input type="url" class="episode-url" placeholder="https://...">
+                </div>
+                <button type="button" class="btn-icon btn-danger" onclick="this.closest('.episode-field').remove()" style="margin-top:20px;">×</button>
+            </div>
+        `;
+        container.appendChild(episodeDiv);
+    };
 
     const searchBtn = document.getElementById('tmdb-search-btn');
     console.log('Modal TMDB - Botão buscar encontrado:', searchBtn);
@@ -319,10 +409,17 @@ async function showAddContentModal() {
             ? castRaw.split(',').map(c => c.trim()).filter(c => c)
             : [];
 
+        // Validação para séries/animes - não obriga URL, apenas verifica se tem episódios adicionados
+        if ((type === 'tv' || type === 'anime') && !document.querySelector('.episode-url')) {
+            errorEl.textContent = 'Para séries e animes, adicione pelo menos uma temporada.';
+            errorEl.style.display = 'block';
+            return;
+        }
+
         const { data, error } = await createCatalogItem({
             title,
             content_type: type,
-            video_url: videoUrl,
+            video_url: (type === 'tv' || type === 'anime') ? null : videoUrl,
             poster: poster || null,
             backdrop: backdrop || null,
             synopsis: synopsis || '',
@@ -341,6 +438,46 @@ async function showAddContentModal() {
             errorEl.textContent = error.message;
             errorEl.style.display = 'block';
             return;
+        }
+
+        // Criar temporadas e episódios para séries/animes
+        if (type === 'tv' || type === 'anime') {
+            const seasonFields = document.querySelectorAll('.season-field');
+            
+            for (const seasonField of seasonFields) {
+                const seasonIndex = parseInt(seasonField.dataset.seasonIndex);
+                const episodeFields = seasonField.querySelectorAll('.episode-field');
+                
+                // Criar temporada
+                const { data: seasonData } = await createSeason({
+                    catalog_id: data.id,
+                    season_number: seasonIndex,
+                    title: `Temporada ${seasonIndex}`,
+                });
+
+                if (seasonData) {
+                    // Criar episódios
+                    for (const episodeField of episodeFields) {
+                        const episodeCode = episodeField.querySelector('.episode-code').value;
+                        const episodeTitle = episodeField.querySelector('.episode-title').value;
+                        const episodeUrl = episodeField.querySelector('.episode-url').value;
+                        
+                        if (!episodeUrl) continue;
+
+                        const parsed = parseSeasonEpisode(episodeCode);
+                        const episodeNumber = parsed ? parsed.episode : parseInt(episodeField.querySelector('.episode-code').dataset.episode);
+
+                        await createEpisode({
+                            season_id: seasonData.id,
+                            catalog_id: data.id,
+                            episode_number: episodeNumber,
+                            title: episodeTitle || `Episódio ${episodeNumber}`,
+                            description: '',
+                            video_url: episodeUrl,
+                        });
+                    }
+                }
+            }
         }
 
         modal.remove();
@@ -447,10 +584,52 @@ async function editCatalogItem(id) {
     const { data: item } = await fetchCatalogById(id);
     if (!item) return;
 
+    const isSeries = item.content_type === 'tv' || item.content_type === 'anime';
+    let seasonsHtml = '';
+    
+    if (isSeries) {
+        const { data: seasons } = await fetchSeasons(id);
+        for (const season of (seasons || [])) {
+            const { data: episodes } = await fetchEpisodes(season.id);
+            const episodesList = (episodes || []).map(ep => `
+                <div class="episode-field">
+                    <div class="episode-row">
+                        <div class="form-group" style="flex:1;">
+                            <label>E${ep.episode_number.toString().padStart(2, '0')}</label>
+                            <input type="text" class="episode-code" value="${formatSeasonEpisode(season.season_number, ep.episode_number)}" data-season="${season.season_number}" data-episode="${ep.episode_number}">
+                        </div>
+                        <div class="form-group" style="flex:2;">
+                            <label>Título</label>
+                            <input type="text" class="episode-title" value="${ep.title || ''}">
+                        </div>
+                        <div class="form-group" style="flex:3;">
+                            <label>URL do Vídeo</label>
+                            <input type="url" class="episode-url" value="${ep.video_url || ''}" placeholder="https://...">
+                        </div>
+                        <button type="button" class="btn-icon btn-danger" onclick="deleteEpisode('${ep.id}', this)" style="margin-top:20px;">×</button>
+                    </div>
+                </div>
+            `).join('');
+            
+            seasonsHtml += `
+                <div class="season-field" data-season-index="${season.season_number}" data-season-id="${season.id}">
+                    <div class="season-header">
+                        <label>Temporada ${season.season_number} (S${season.season_number.toString().padStart(2, '0')})</label>
+                        <button type="button" class="btn-icon btn-danger" onclick="deleteSeason('${season.id}', this)">×</button>
+                    </div>
+                    <div class="episodes-container" id="episodes-container-${season.season_number}">
+                        ${episodesList}
+                    </div>
+                    <button type="button" class="btn-secondary btn-sm" onclick="addEpisodeField(${season.season_number})">+ Adicionar Episódio</button>
+                </div>
+            `;
+        }
+    }
+
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.innerHTML = `
-        <div class="modal">
+        <div class="modal modal-lg">
             <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
             <h3>Editar Conteúdo</h3>
             <form id="edit-content-form">
@@ -458,10 +637,20 @@ async function editCatalogItem(id) {
                     <label>Título</label>
                     <input type="text" id="edit-title" value="${item.title || ''}" required>
                 </div>
+                ${!isSeries ? `
                 <div class="form-group">
                     <label>URL do Vídeo</label>
                     <input type="url" id="edit-video" value="${item.video_url || ''}" required>
                 </div>
+                ` : `
+                <div id="series-fields">
+                    <div class="form-group">
+                        <label>Temporadas e Episódios</label>
+                        <div id="seasons-container">${seasonsHtml}</div>
+                        <button type="button" class="btn-secondary" onclick="addSeasonField()">+ Adicionar Temporada</button>
+                    </div>
+                </div>
+                `}
                 <div class="form-group">
                     <label>Status</label>
                     <select id="edit-active">
@@ -480,21 +669,167 @@ async function editCatalogItem(id) {
         if (e.target === modal) modal.remove();
     });
 
+    // Funções para adicionar temporada/episódio no modal de edição
+    window.addSeasonField = function(seasonNum = null) {
+        const container = document.getElementById('seasons-container');
+        const seasonIndex = container.children.length + 1;
+        const seasonNumValue = seasonNum || seasonIndex;
+
+        const seasonDiv = document.createElement('div');
+        seasonDiv.className = 'season-field';
+        seasonDiv.dataset.seasonIndex = seasonIndex;
+        seasonDiv.innerHTML = `
+            <div class="season-header">
+                <label>Temporada ${seasonNumValue} (S${seasonNumValue.toString().padStart(2, '0')})</label>
+                <button type="button" class="btn-icon btn-danger" onclick="this.closest('.season-field').remove()">×</button>
+            </div>
+            <div class="episodes-container" id="episodes-container-${seasonIndex}"></div>
+            <button type="button" class="btn-secondary btn-sm" onclick="addEpisodeField(${seasonIndex})">+ Adicionar Episódio</button>
+        `;
+        container.appendChild(seasonDiv);
+    };
+
+    window.addEpisodeField = function(seasonIndex, episodeNum = null) {
+        const container = document.getElementById(`episodes-container-${seasonIndex}`);
+        const episodeIndex = container.children.length + 1;
+        const episodeNumValue = episodeNum || episodeIndex;
+
+        const episodeDiv = document.createElement('div');
+        episodeDiv.className = 'episode-field';
+        episodeDiv.innerHTML = `
+            <div class="episode-row">
+                <div class="form-group" style="flex:1;">
+                    <label>E${episodeNumValue.toString().padStart(2, '0')}</label>
+                    <input type="text" class="episode-code" placeholder="S01E01" value="S${seasonIndex.toString().padStart(2, '0')}E${episodeNumValue.toString().padStart(2, '0')}" data-season="${seasonIndex}" data-episode="${episodeNumValue}">
+                </div>
+                <div class="form-group" style="flex:2;">
+                    <label>Título</label>
+                    <input type="text" class="episode-title" placeholder="Título do episódio">
+                </div>
+                <div class="form-group" style="flex:3;">
+                    <label>URL do Vídeo</label>
+                    <input type="url" class="episode-url" placeholder="https://...">
+                </div>
+                <button type="button" class="btn-icon btn-danger" onclick="this.closest('.episode-field').remove()" style="margin-top:20px;">×</button>
+            </div>
+        `;
+        container.appendChild(episodeDiv);
+    };
+
+    // Funções para deletar temporada/episódio
+    window.deleteEpisode = async (episodeId, btn) => {
+        if (confirm('Tem certeza que deseja excluir este episódio?')) {
+            await adminDeleteEpisode(episodeId);
+            btn.closest('.episode-field').remove();
+            showToast('Episódio excluído', 'success');
+        }
+    };
+
+    window.deleteSeason = async (seasonId, btn) => {
+        if (confirm('Tem certeza que deseja excluir esta temporada e todos os episódios?')) {
+            const { error } = await getSupabase()
+                .from('seasons')
+                .delete()
+                .eq('id', seasonId);
+            if (!error) {
+                btn.closest('.season-field').remove();
+                showToast('Temporada excluída', 'success');
+            }
+        }
+    };
+
     document.getElementById('edit-content-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const errorEl = document.getElementById('edit-error');
 
-        const { error } = await updateCatalogItem(id, {
+        const updateData = {
             title: document.getElementById('edit-title').value,
-            video_url: document.getElementById('edit-video').value,
             is_active: document.getElementById('edit-active').value === 'true',
             updated_at: new Date().toISOString(),
-        });
+        };
+
+        if (!isSeries) {
+            updateData.video_url = document.getElementById('edit-video').value;
+        }
+
+        const { error } = await updateCatalogItem(id, updateData);
 
         if (error) {
             errorEl.textContent = error.message;
             errorEl.style.display = 'block';
             return;
+        }
+
+        // Atualizar episódios se for série/anime
+        if (isSeries) {
+            const seasonFields = document.querySelectorAll('.season-field');
+            
+            for (const seasonField of seasonFields) {
+                const seasonId = seasonField.dataset.seasonId;
+                const seasonIndex = parseInt(seasonField.dataset.seasonIndex);
+                const episodeFields = seasonField.querySelectorAll('.episode-field');
+                
+                // Se a temporada já existe, atualizar episódios
+                if (seasonId) {
+                    for (const episodeField of episodeFields) {
+                        const episodeCode = episodeField.querySelector('.episode-code').value;
+                        const episodeTitle = episodeField.querySelector('.episode-title').value;
+                        const episodeUrl = episodeField.querySelector('.episode-url').value;
+                        
+                        const parsed = parseSeasonEpisode(episodeCode);
+                        const episodeNumber = parsed ? parsed.episode : parseInt(episodeField.querySelector('.episode-code').dataset.episode);
+                        
+                        // Buscar episódio existente pelo número
+                        const { data: existingEpisodes } = await fetchEpisodes(seasonId);
+                        const existingEpisode = existingEpisodes?.find(ep => ep.episode_number === episodeNumber);
+                        
+                        if (existingEpisode) {
+                            await updateEpisode(existingEpisode.id, {
+                                title: episodeTitle || `Episódio ${episodeNumber}`,
+                                video_url: episodeUrl,
+                            });
+                        } else {
+                            await createEpisode({
+                                season_id: seasonId,
+                                catalog_id: id,
+                                episode_number: episodeNumber,
+                                title: episodeTitle || `Episódio ${episodeNumber}`,
+                                description: '',
+                                video_url: episodeUrl,
+                            });
+                        }
+                    }
+                } else {
+                    // Criar nova temporada
+                    const { data: seasonData } = await createSeason({
+                        catalog_id: id,
+                        season_number: seasonIndex,
+                        title: `Temporada ${seasonIndex}`,
+                    });
+
+                    if (seasonData) {
+                        for (const episodeField of episodeFields) {
+                            const episodeCode = episodeField.querySelector('.episode-code').value;
+                            const episodeTitle = episodeField.querySelector('.episode-title').value;
+                            const episodeUrl = episodeField.querySelector('.episode-url').value;
+                            
+                            if (!episodeUrl) continue;
+
+                            const parsed = parseSeasonEpisode(episodeCode);
+                            const episodeNumber = parsed ? parsed.episode : parseInt(episodeField.querySelector('.episode-code').dataset.episode);
+
+                            await createEpisode({
+                                season_id: seasonData.id,
+                                catalog_id: id,
+                                episode_number: episodeNumber,
+                                title: episodeTitle || `Episódio ${episodeNumber}`,
+                                description: '',
+                                video_url: episodeUrl,
+                            });
+                        }
+                    }
+                }
+            }
         }
 
         modal.remove();

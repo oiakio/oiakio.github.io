@@ -68,37 +68,49 @@ async function renderHome() {
 
     app.innerHTML = `
         <div class="page home-page">
-            <section class="hero-section">
-                <h2 class="section-title">Bem-vindo ao OiakiÓ</h2>
-                <div class="hero-categories">
-                    <div class="hero-card" onclick="navigate('#/filmes')">
-                        <h3>Filmes</h3>
+            <div class="home-grid">
+                <div class="home-column">
+                    <div class="home-card" id="continue-watching-card" style="display:none">
+                        <h2 class="card-title">Continuar assistindo</h2>
+                        <div class="catalog-grid" id="continue-grid"></div>
                     </div>
-                    <div class="hero-card" onclick="navigate('#/series')">
-                        <h3>Séries</h3>
+                    <div class="home-card" id="latest-section-card" style="display:none">
+                        <h2 class="card-title">Últimas Atualizações</h2>
+                        <div class="catalog-grid" id="latest-grid"></div>
                     </div>
-                    <div class="hero-card" onclick="navigate('#/animes')">
-                        <h3>Animes</h3>
+                    <div class="home-card" id="most-watched-section-card" style="display:none">
+                        <h2 class="card-title">Mais Assistidos</h2>
+                        <div class="catalog-grid" id="most-watched-grid"></div>
                     </div>
                 </div>
-            </section>
-            <section class="continue-section" id="continue-watching" style="display:none">
-                <h2 class="section-title">Continuar assistindo</h2>
-                <div class="catalog-grid" id="continue-grid"></div>
-            </section>
-            <section class="top-month-section" id="top-month-section" style="display:none">
-                <h2 class="section-title">Mais assistidos do mês</h2>
-                <div class="top-month-grid" id="top-month-grid"></div>
-            </section>
+                <div class="home-column">
+                    <div class="home-card" id="latest-episodes-section-card" style="display:none">
+                        <h2 class="card-title">Novos Episódios</h2>
+                        <div class="catalog-grid" id="latest-episodes-grid"></div>
+                    </div>
+                    <div class="home-card" id="most-favorited-section-card" style="display:none">
+                        <h2 class="card-title">Mais Favoritados</h2>
+                        <div class="catalog-grid" id="most-favorited-grid"></div>
+                    </div>
+                    <div class="home-card" id="most-liked-section-card" style="display:none">
+                        <h2 class="card-title">Mais Curtidos</h2>
+                        <div class="catalog-grid" id="most-liked-grid"></div>
+                    </div>
+                    <div class="home-card" id="most-disliked-section-card" style="display:none">
+                        <h2 class="card-title">Mais Não-Gostados</h2>
+                        <div class="catalog-grid" id="most-disliked-grid"></div>
+                    </div>
+                </div>
+            </div>
         </div>
     `;
 
     const { data: progress } = await fetchWatchProgress(user.id);
-    const continueSection = document.getElementById('continue-watching');
+    const continueCard = document.getElementById('continue-watching-card');
     const continueGrid = document.getElementById('continue-grid');
 
     if (progress && progress.length > 0) {
-        continueSection.style.display = '';
+        continueCard.style.display = '';
         const watchedIds = new Set();
         const favIds = new Set();
         const likeIds = new Set();
@@ -143,25 +155,13 @@ async function renderHome() {
         }).join('');
     }
 
-    const types = [
-        { key: 'movie', label: 'Filmes' },
-        { key: 'tv', label: 'Séries' },
-        { key: 'anime', label: 'Animes' },
-    ];
-
-    const topMonthSection = document.getElementById('top-month-section');
-    const topMonthGrid = document.getElementById('top-month-grid');
-    const topItems = [];
-
-    for (const t of types) {
-        const { data } = await fetchMostWatched(t.key, 3);
-        if (data && data.length > 0) {
-            topItems.push(...data.map(item => ({ ...item, typeLabel: t.label })));
-        }
-    }
-
-    if (topItems.length > 0) {
-        topMonthSection.style.display = '';
+    // Carregar Últimas Atualizações
+    const latestCard = document.getElementById('latest-section-card');
+    const latestGrid = document.getElementById('latest-grid');
+    const { data: latestContent } = await fetchLatestContent(8);
+    
+    if (latestContent && latestContent.length > 0) {
+        latestCard.style.display = '';
         const watchedIds = new Set();
         const favIds = new Set();
         const likeIds = new Set();
@@ -179,16 +179,17 @@ async function renderHome() {
             const { data: watchlistData } = await fetchWatchlist(user.id);
             watchlistData.forEach(w => watchlistIds.add(w.catalog_id));
         }
-        topMonthGrid.innerHTML = topItems.map(item => {
-            const watched = watchedIds.has(item.catalog_id);
-            const favorited = favIds.has(item.catalog_id);
-            const liked = likeIds.has(item.catalog_id);
-            const disliked = dislikeIds.has(item.catalog_id);
-            const watchlisted = watchlistIds.has(item.catalog_id);
+        latestGrid.innerHTML = latestContent.map(item => {
+            const watched = watchedIds.has(item.id);
+            const favorited = favIds.has(item.id);
+            const liked = likeIds.has(item.id);
+            const disliked = dislikeIds.has(item.id);
+            const watchlisted = watchlistIds.has(item.id);
             const reactionIcon = disliked ? 'dislike' : liked ? 'like' : null;
             const reactionClass = disliked ? 'reaction-badge dislike' : 'reaction-badge';
+            const isSeries = item.content_type === 'tv' || item.content_type === 'anime';
             return `
-            <div class="content-card" onclick="openDetailModal('${item.catalog_id}')">
+            <div class="content-card" onclick="openDetailModal('${item.id}')">
                 <div class="poster-wrapper">
                     <img src="${item.poster || ''}" alt="${item.title || ''}" loading="lazy">
                     ${watched ? `<div class="watched-badge">${getIcon('check', 16)}</div>` : ''}
@@ -198,7 +199,242 @@ async function renderHome() {
                 </div>
                 <div class="content-info">
                     <h4>${item.title || 'Sem título'}</h4>
-                    <span class="content-meta">${item.typeLabel || ''}</span>
+                    <span class="content-meta">${item.release_year || ''}${isSeries ? ' • Série' : ''}</span>
+                </div>
+            </div>
+        `;
+        }).join('');
+    }
+
+    // Carregar Novos Episódios
+    const latestEpisodesCard = document.getElementById('latest-episodes-section-card');
+    const latestEpisodesGrid = document.getElementById('latest-episodes-grid');
+    const { data: latestEpisodes } = await fetchLatestEpisodes(8);
+    
+    if (latestEpisodes && latestEpisodes.length > 0) {
+        latestEpisodesCard.style.display = '';
+        latestEpisodesGrid.innerHTML = latestEpisodes.map(ep => {
+            const seasonNum = ep.season?.season_number || 1;
+            const epNum = ep.episode_number || '';
+            const epTitle = ep.title || `Episódio ${epNum}`;
+            const epCode = `S${seasonNum.toString().padStart(2, '0')}E${epNum.toString().padStart(2, '0')}`;
+            return `
+            <div class="content-card" onclick="openDetailModal('${ep.catalog_id}')">
+                <div class="poster-wrapper">
+                    <img src="${ep.catalog?.poster || ''}" alt="${ep.catalog?.title || ''}" loading="lazy">
+                    <div class="episode-number">${epCode}</div>
+                </div>
+                <div class="content-info">
+                    <h4>${ep.catalog?.title || ''}</h4>
+                    <span class="content-meta">${epTitle}</span>
+                </div>
+            </div>
+        `;
+        }).join('');
+    }
+
+    // Carregar Mais Assistidos
+    const mostWatchedCard = document.getElementById('most-watched-section-card');
+    const mostWatchedGrid = document.getElementById('most-watched-grid');
+    const { data: mostWatched } = await fetchMostWatched(8);
+    
+    if (mostWatched && mostWatched.length > 0) {
+        mostWatchedCard.style.display = '';
+        const watchedIds = new Set();
+        const favIds = new Set();
+        const likeIds = new Set();
+        const dislikeIds = new Set();
+        const watchlistIds = new Set();
+        if (user) {
+            const { data: watchedData } = await fetchWatched(user.id);
+            watchedData.forEach(w => watchedIds.add(w.catalog_id));
+            const { data: favData } = await fetchFavorites(user.id);
+            favData.forEach(f => favIds.add(f.catalog_id));
+            const { data: likeData } = await fetchLikes(user.id);
+            likeData.forEach(l => likeIds.add(l.catalog_id));
+            const { data: dislikeData } = await fetchDislikes(user.id);
+            dislikeData.forEach(d => dislikeIds.add(d.catalog_id));
+            const { data: watchlistData } = await fetchWatchlist(user.id);
+            watchlistData.forEach(w => watchlistIds.add(w.catalog_id));
+        }
+        mostWatchedGrid.innerHTML = mostWatched.map(item => {
+            const watched = watchedIds.has(item.id);
+            const favorited = favIds.has(item.id);
+            const liked = likeIds.has(item.id);
+            const disliked = dislikeIds.has(item.id);
+            const watchlisted = watchlistIds.has(item.id);
+            const reactionIcon = disliked ? 'dislike' : liked ? 'like' : null;
+            const reactionClass = disliked ? 'reaction-badge dislike' : 'reaction-badge';
+            const isSeries = item.content_type === 'tv' || item.content_type === 'anime';
+            return `
+            <div class="content-card" onclick="openDetailModal('${item.id}')">
+                <div class="poster-wrapper">
+                    <img src="${item.poster || ''}" alt="${item.title || ''}" loading="lazy">
+                    ${watched ? `<div class="watched-badge">${getIcon('check', 16)}</div>` : ''}
+                    ${favorited ? `<div class="fav-badge">${getIcon('star', 16)}</div>` : ''}
+                    ${reactionIcon ? `<div class="${reactionClass}">${getIcon(reactionIcon, 16)}</div>` : ''}
+                    ${watchlisted ? `<div class="watchlist-badge">${getIcon('plus', 16)}</div>` : ''}
+                    <div class="rank-badge">#${item.watch_count}</div>
+                </div>
+                <div class="content-info">
+                    <h4>${item.title || 'Sem título'}</h4>
+                    <span class="content-meta">${item.release_year || ''}${isSeries ? ' • Série' : ''}</span>
+                </div>
+            </div>
+        `;
+        }).join('');
+    }
+
+    // Carregar Mais Favoritados
+    const mostFavoritedCard = document.getElementById('most-favorited-section-card');
+    const mostFavoritedGrid = document.getElementById('most-favorited-grid');
+    const { data: mostFavorited } = await fetchMostFavorited(8);
+    
+    if (mostFavorited && mostFavorited.length > 0) {
+        mostFavoritedCard.style.display = '';
+        const watchedIds = new Set();
+        const favIds = new Set();
+        const likeIds = new Set();
+        const dislikeIds = new Set();
+        const watchlistIds = new Set();
+        if (user) {
+            const { data: watchedData } = await fetchWatched(user.id);
+            watchedData.forEach(w => watchedIds.add(w.catalog_id));
+            const { data: favData } = await fetchFavorites(user.id);
+            favData.forEach(f => favIds.add(f.catalog_id));
+            const { data: likeData } = await fetchLikes(user.id);
+            likeData.forEach(l => likeIds.add(l.catalog_id));
+            const { data: dislikeData } = await fetchDislikes(user.id);
+            dislikeData.forEach(d => dislikeIds.add(d.catalog_id));
+            const { data: watchlistData } = await fetchWatchlist(user.id);
+            watchlistIds.forEach(w => watchlistIds.add(w.catalog_id));
+        }
+        mostFavoritedGrid.innerHTML = mostFavorited.map(item => {
+            const watched = watchedIds.has(item.id);
+            const favorited = favIds.has(item.id);
+            const liked = likeIds.has(item.id);
+            const disliked = dislikeIds.has(item.id);
+            const watchlisted = watchlistIds.has(item.id);
+            const reactionIcon = disliked ? 'dislike' : liked ? 'like' : null;
+            const reactionClass = disliked ? 'reaction-badge dislike' : 'reaction-badge';
+            const isSeries = item.content_type === 'tv' || item.content_type === 'anime';
+            return `
+            <div class="content-card" onclick="openDetailModal('${item.id}')">
+                <div class="poster-wrapper">
+                    <img src="${item.poster || ''}" alt="${item.title || ''}" loading="lazy">
+                    ${watched ? `<div class="watched-badge">${getIcon('check', 16)}</div>` : ''}
+                    ${favorited ? `<div class="fav-badge">${getIcon('star', 16)}</div>` : ''}
+                    ${reactionIcon ? `<div class="${reactionClass}">${getIcon(reactionIcon, 16)}</div>` : ''}
+                    ${watchlisted ? `<div class="watchlist-badge">${getIcon('plus', 16)}</div>` : ''}
+                    <div class="rank-badge">#${item.fav_count}</div>
+                </div>
+                <div class="content-info">
+                    <h4>${item.title || 'Sem título'}</h4>
+                    <span class="content-meta">${item.release_year || ''}${isSeries ? ' • Série' : ''}</span>
+                </div>
+            </div>
+        `;
+        }).join('');
+    }
+
+    // Carregar Mais Curtidos
+    const mostLikedCard = document.getElementById('most-liked-section-card');
+    const mostLikedGrid = document.getElementById('most-liked-grid');
+    const { data: mostLiked } = await fetchMostLiked(8);
+    
+    if (mostLiked && mostLiked.length > 0) {
+        mostLikedCard.style.display = '';
+        const watchedIds = new Set();
+        const favIds = new Set();
+        const likeIds = new Set();
+        const dislikeIds = new Set();
+        const watchlistIds = new Set();
+        if (user) {
+            const { data: watchedData } = await fetchWatched(user.id);
+            watchedData.forEach(w => watchedIds.add(w.catalog_id));
+            const { data: favData } = await fetchFavorites(user.id);
+            favData.forEach(f => favIds.add(f.catalog_id));
+            const { data: likeData } = await fetchLikes(user.id);
+            likeData.forEach(l => likeIds.add(l.catalog_id));
+            const { data: dislikeData } = await fetchDislikes(user.id);
+            dislikeData.forEach(d => dislikeIds.add(d.catalog_id));
+            const { data: watchlistData } = await fetchWatchlist(user.id);
+            watchlistIds.forEach(w => watchlistIds.add(w.catalog_id));
+        }
+        mostLikedGrid.innerHTML = mostLiked.map(item => {
+            const watched = watchedIds.has(item.id);
+            const favorited = favIds.has(item.id);
+            const liked = likeIds.has(item.id);
+            const disliked = dislikeIds.has(item.id);
+            const watchlisted = watchlistIds.has(item.id);
+            const reactionIcon = disliked ? 'dislike' : liked ? 'like' : null;
+            const reactionClass = disliked ? 'reaction-badge dislike' : 'reaction-badge';
+            const isSeries = item.content_type === 'tv' || item.content_type === 'anime';
+            return `
+            <div class="content-card" onclick="openDetailModal('${item.id}')">
+                <div class="poster-wrapper">
+                    <img src="${item.poster || ''}" alt="${item.title || ''}" loading="lazy">
+                    ${watched ? `<div class="watched-badge">${getIcon('check', 16)}</div>` : ''}
+                    ${favorited ? `<div class="fav-badge">${getIcon('star', 16)}</div>` : ''}
+                    ${reactionIcon ? `<div class="${reactionClass}">${getIcon(reactionIcon, 16)}</div>` : ''}
+                    ${watchlisted ? `<div class="watchlist-badge">${getIcon('plus', 16)}</div>` : ''}
+                    <div class="rank-badge">#${item.like_count}</div>
+                </div>
+                <div class="content-info">
+                    <h4>${item.title || 'Sem título'}</h4>
+                    <span class="content-meta">${item.release_year || ''}${isSeries ? ' • Série' : ''}</span>
+                </div>
+            </div>
+        `;
+        }).join('');
+    }
+
+    // Carregar Mais Não-Gostados
+    const mostDislikedCard = document.getElementById('most-disliked-section-card');
+    const mostDislikedGrid = document.getElementById('most-disliked-grid');
+    const { data: mostDisliked } = await fetchMostDisliked(8);
+    
+    if (mostDisliked && mostDisliked.length > 0) {
+        mostDislikedCard.style.display = '';
+        const watchedIds = new Set();
+        const favIds = new Set();
+        const likeIds = new Set();
+        const dislikeIds = new Set();
+        const watchlistIds = new Set();
+        if (user) {
+            const { data: watchedData } = await fetchWatched(user.id);
+            watchedData.forEach(w => watchedIds.add(w.catalog_id));
+            const { data: favData } = await fetchFavorites(user.id);
+            favData.forEach(f => favIds.add(f.catalog_id));
+            const { data: likeData } = await fetchLikes(user.id);
+            likeData.forEach(l => likeIds.add(l.catalog_id));
+            const { data: dislikeData } = await fetchDislikes(user.id);
+            dislikeData.forEach(d => dislikeIds.add(d.catalog_id));
+            const { data: watchlistData } = await fetchWatchlist(user.id);
+            watchlistIds.forEach(w => watchlistIds.add(w.catalog_id));
+        }
+        mostDislikedGrid.innerHTML = mostDisliked.map(item => {
+            const watched = watchedIds.has(item.id);
+            const favorited = favIds.has(item.id);
+            const liked = likeIds.has(item.id);
+            const disliked = dislikeIds.has(item.id);
+            const watchlisted = watchlistIds.has(item.id);
+            const reactionIcon = disliked ? 'dislike' : liked ? 'like' : null;
+            const reactionClass = disliked ? 'reaction-badge dislike' : 'reaction-badge';
+            const isSeries = item.content_type === 'tv' || item.content_type === 'anime';
+            return `
+            <div class="content-card" onclick="openDetailModal('${item.id}')">
+                <div class="poster-wrapper">
+                    <img src="${item.poster || ''}" alt="${item.title || ''}" loading="lazy">
+                    ${watched ? `<div class="watched-badge">${getIcon('check', 16)}</div>` : ''}
+                    ${favorited ? `<div class="fav-badge">${getIcon('star', 16)}</div>` : ''}
+                    ${reactionIcon ? `<div class="${reactionClass}">${getIcon(reactionIcon, 16)}</div>` : ''}
+                    ${watchlisted ? `<div class="watchlist-badge">${getIcon('plus', 16)}</div>` : ''}
+                    <div class="rank-badge">#${item.dislike_count}</div>
+                </div>
+                <div class="content-info">
+                    <h4>${item.title || 'Sem título'}</h4>
+                    <span class="content-meta">${item.release_year || ''}${isSeries ? ' • Série' : ''}</span>
                 </div>
             </div>
         `;
