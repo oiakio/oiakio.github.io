@@ -457,10 +457,11 @@ input:focus, select:focus, textarea:focus {
 .poster-card, .content-card {
     background: var(--color-card);
     border-radius: var(--radius-md);
-    overflow: hidden;
+    overflow: visible;
     cursor: pointer;
     transition: var(--transition);
     border: 1px solid var(--color-border);
+    position: relative;
 }
 
 .poster-card:hover, .content-card:hover {
@@ -516,9 +517,9 @@ input:focus, select:focus, textarea:focus {
     font-size: 0.95rem;
     font-weight: 600;
     margin-bottom: 0.25rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
 }
 
 .poster-meta, .content-meta {
@@ -1997,15 +1998,15 @@ input:focus, select:focus, textarea:focus {
    ============================================ */
 
 .rank-badge {
-    position: absolute;
-    top: 8px;
-    right: 8px;
+    position: relative;
+    display: inline-block;
     background: var(--color-accent);
     color: var(--color-bg);
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     font-weight: bold;
-    padding: 2px 8px;
-    border-radius: 12px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    margin-bottom: 0.5rem;
     z-index: 2;
 }
 

@@ -112,6 +112,15 @@ async function fetchSeasons(catalogId) {
     return { data: data || [], error };
 }
 
+async function fetchSeasonsWithEpisodes(catalogId) {
+    const db = getSupabase();
+    if (!db) return { data: [], error: 'Supabase não inicializado' };
+    const { data, error } = await db.rpc('get_catalog_seasons_with_episodes', {
+        p_catalog_id: catalogId
+    });
+    return { data: data || [], error };
+}
+
 async function fetchEpisodes(seasonId) {
     const db = getSupabase();
     if (!db) return { data: [], error: 'Supabase não inicializado' };

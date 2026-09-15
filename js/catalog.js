@@ -186,18 +186,29 @@ async function openDetailModal(catalogId) {
 
     let seasonsHtml = '';
     if (isSeries) {
-        const { data: seasons } = await fetchSeasons(catalogId);
-        const seasonsWithEpisodes = await Promise.all(
-            (seasons || []).map(async (s) => {
-                const { data: episodes } = await fetchEpisodes(s.id);
-                return { ...s, episodes: episodes || [] };
-            })
-        );
+        const { data: seasonsWithEpisodes } = await fetchSeasonsWithEpisodes(item.id);
+        const groupedBySeason = {};
+        (seasonsWithEpisodes || []).forEach(row => {
+            if (!groupedBySeason[row.season_id]) {
+                groupedBySeason[row.season_id] = {
+                    season_number: row.season_number,
+                    episodes: []
+                };
+            }
+            if (row.episode_id) {
+                groupedBySeason[row.season_id].episodes.push({
+                    id: row.episode_id,
+                    episode_number: row.episode_number,
+                    title: row.episode_title,
+                    video_url: row.episode_video_url
+                });
+            }
+        });
         seasonsHtml = `
             <div class="seasons-list">
                 <h3>Temporadas</h3>
                 <div class="season-items">
-                    ${seasonsWithEpisodes.map(s => `
+                    ${Object.values(groupedBySeason).map(s => `
                         <div class="season-item">
                             <h4>Temporada ${s.season_number}</h4>
                             <div class="episodes-list">
@@ -305,17 +316,21 @@ async function openDetailModal(catalogId) {
             
             // Atualizar botões de episódios vistos
             if (isSeries) {
-                const { data: seasons } = await fetchSeasons(item.id);
-                for (const season of (seasons || [])) {
-                    const { data: episodes } = await fetchEpisodes(season.id);
-                    for (const ep of (episodes || [])) {
-                        const epWatched = await isWatched(user.id, item.id, ep.id);
-                        const btn = document.getElementById(`watched-ep-btn-${ep.id}`);
-                        if (btn) {
-                            btn.classList.toggle('active', epWatched);
-                        }
+                const db = getSupabase();
+                const { data: watchedEpisodes } = await db.rpc('get_user_watched_episodes', {
+                    p_user_id: user.id,
+                    p_catalog_id: item.id
+                });
+                const watchedEpisodeIds = new Set((watchedEpisodes || []).map(w => w.episode_id));
+                
+                const epButtons = document.querySelectorAll('.episode-item[data-episode-id]');
+                epButtons.forEach(epEl => {
+                    const epId = epEl.dataset.episodeId;
+                    const btn = epEl.querySelector('.btn-watched-episode');
+                    if (btn) {
+                        btn.classList.toggle('active', watchedEpisodeIds.has(epId));
                     }
-                }
+                });
             }
         } catch (err) {
             console.warn('Erro ao atualizar botões:', err);

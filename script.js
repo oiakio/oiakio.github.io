@@ -257,7 +257,7 @@ async function renderHome() {
             const { data: watchlistData } = await fetchWatchlist(user.id);
             watchlistData.forEach(w => watchlistIds.add(w.catalog_id));
         }
-        mostWatchedGrid.innerHTML = mostWatched.map(item => {
+        mostWatchedGrid.innerHTML = mostWatched.map((item, index) => {
             const watched = watchedIds.has(item.id);
             const favorited = favIds.has(item.id);
             const liked = likeIds.has(item.id);
@@ -274,9 +274,9 @@ async function renderHome() {
                     ${favorited ? `<div class="fav-badge">${getIcon('star', 16)}</div>` : ''}
                     ${reactionIcon ? `<div class="${reactionClass}">${getIcon(reactionIcon, 16)}</div>` : ''}
                     ${watchlisted ? `<div class="watchlist-badge">${getIcon('plus', 16)}</div>` : ''}
-                    <div class="rank-badge">#${item.watch_count}</div>
                 </div>
                 <div class="content-info">
+                    <div class="rank-badge">#${index + 1}</div>
                     <h4>${item.title || 'Sem título'}</h4>
                     <span class="content-meta">${item.release_year || ''}${isSeries ? ' • Série' : ''}</span>
                 </div>
@@ -309,7 +309,7 @@ async function renderHome() {
             const { data: watchlistData } = await fetchWatchlist(user.id);
             watchlistIds.forEach(w => watchlistIds.add(w.catalog_id));
         }
-        mostFavoritedGrid.innerHTML = mostFavorited.map(item => {
+        mostFavoritedGrid.innerHTML = mostFavorited.map((item, index) => {
             const watched = watchedIds.has(item.id);
             const favorited = favIds.has(item.id);
             const liked = likeIds.has(item.id);
@@ -326,9 +326,9 @@ async function renderHome() {
                     ${favorited ? `<div class="fav-badge">${getIcon('star', 16)}</div>` : ''}
                     ${reactionIcon ? `<div class="${reactionClass}">${getIcon(reactionIcon, 16)}</div>` : ''}
                     ${watchlisted ? `<div class="watchlist-badge">${getIcon('plus', 16)}</div>` : ''}
-                    <div class="rank-badge">#${item.fav_count}</div>
                 </div>
                 <div class="content-info">
+                    <div class="rank-badge">#${index + 1}</div>
                     <h4>${item.title || 'Sem título'}</h4>
                     <span class="content-meta">${item.release_year || ''}${isSeries ? ' • Série' : ''}</span>
                 </div>
@@ -361,7 +361,7 @@ async function renderHome() {
             const { data: watchlistData } = await fetchWatchlist(user.id);
             watchlistIds.forEach(w => watchlistIds.add(w.catalog_id));
         }
-        mostLikedGrid.innerHTML = mostLiked.map(item => {
+        mostLikedGrid.innerHTML = mostLiked.map((item, index) => {
             const watched = watchedIds.has(item.id);
             const favorited = favIds.has(item.id);
             const liked = likeIds.has(item.id);
@@ -378,9 +378,9 @@ async function renderHome() {
                     ${favorited ? `<div class="fav-badge">${getIcon('star', 16)}</div>` : ''}
                     ${reactionIcon ? `<div class="${reactionClass}">${getIcon(reactionIcon, 16)}</div>` : ''}
                     ${watchlisted ? `<div class="watchlist-badge">${getIcon('plus', 16)}</div>` : ''}
-                    <div class="rank-badge">#${item.like_count}</div>
                 </div>
                 <div class="content-info">
+                    <div class="rank-badge">#${index + 1}</div>
                     <h4>${item.title || 'Sem título'}</h4>
                     <span class="content-meta">${item.release_year || ''}${isSeries ? ' • Série' : ''}</span>
                 </div>
@@ -413,7 +413,7 @@ async function renderHome() {
             const { data: watchlistData } = await fetchWatchlist(user.id);
             watchlistIds.forEach(w => watchlistIds.add(w.catalog_id));
         }
-        mostDislikedGrid.innerHTML = mostDisliked.map(item => {
+        mostDislikedGrid.innerHTML = mostDisliked.map((item, index) => {
             const watched = watchedIds.has(item.id);
             const favorited = favIds.has(item.id);
             const liked = likeIds.has(item.id);
@@ -430,9 +430,9 @@ async function renderHome() {
                     ${favorited ? `<div class="fav-badge">${getIcon('star', 16)}</div>` : ''}
                     ${reactionIcon ? `<div class="${reactionClass}">${getIcon(reactionIcon, 16)}</div>` : ''}
                     ${watchlisted ? `<div class="watchlist-badge">${getIcon('plus', 16)}</div>` : ''}
-                    <div class="rank-badge">#${item.dislike_count}</div>
                 </div>
                 <div class="content-info">
+                    <div class="rank-badge">#${index + 1}</div>
                     <h4>${item.title || 'Sem título'}</h4>
                     <span class="content-meta">${item.release_year || ''}${isSeries ? ' • Série' : ''}</span>
                 </div>
@@ -466,7 +466,7 @@ async function renderHome() {
     onAuthStateChange(async (event, session) => {
         if (event === 'SIGNED_OUT') {
             navigate('#/login');
-        } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        } else if (event === 'SIGNED_IN') {
             await handleRoute();
         }
     });
