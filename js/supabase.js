@@ -387,14 +387,6 @@ async function fetchWatchHistory(userId, limit = 50) {
     return { data: data || [], error };
 }
 
-async function fetchMostWatched(type = null, limit = 20) {
-    const db = getSupabase();
-    if (!db) return { data: [], error: 'Supabase não inicializado' };
-
-    const { data, error } = await db.rpc('get_most_watched', { p_content_type: type, p_limit: limit });
-    return { data: data || [], error };
-}
-
 // ============================================
 // PERFIS
 // ============================================
@@ -522,136 +514,52 @@ async function fetchAllCatalog() {
 // RANKINGS
 // ============================================
 
-async function fetchMostWatched(limit = 10) {
+async function fetchMostWatched(limit = 10, type = null) {
     const db = getSupabase();
     if (!db) return { data: [], error: 'Supabase não inicializado' };
-    
-    const { data, error } = await db
-        .from('watched')
-        .select('catalog_id, catalog!inner(title, poster, content_type, release_year)')
-        .order('watched_at', { ascending: false })
-        .limit(limit * 10);
-    
-    if (error) return { data: [], error };
-    
-    const counts = {};
-    const catalogMap = {};
-    (data || []).forEach(w => {
-        if (!counts[w.catalog_id]) {
-            counts[w.catalog_id] = 0;
-            catalogMap[w.catalog_id] = w.catalog;
-        }
-        counts[w.catalog_id]++;
+
+    const { data, error } = await db.rpc('get_most_watched', {
+        p_content_type: type,
+        p_limit: limit
     });
-    
-    const sorted = Object.entries(counts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, limit)
-        .map(([id, count]) => ({
-            ...catalogMap[id],
-            watch_count: count
-        }));
-    
-    return { data: sorted, error: null };
+
+    return { data: data || [], error };
 }
 
-async function fetchMostFavorited(limit = 10) {
+async function fetchMostFavorited(limit = 10, type = null) {
     const db = getSupabase();
     if (!db) return { data: [], error: 'Supabase não inicializado' };
-    
-    const { data, error } = await db
-        .from('favorites')
-        .select('catalog_id, catalog!inner(title, poster, content_type, release_year)')
-        .order('created_at', { ascending: false })
-        .limit(limit * 10);
-    
-    if (error) return { data: [], error };
-    
-    const counts = {};
-    const catalogMap = {};
-    (data || []).forEach(f => {
-        if (!counts[f.catalog_id]) {
-            counts[f.catalog_id] = 0;
-            catalogMap[f.catalog_id] = f.catalog;
-        }
-        counts[f.catalog_id]++;
+
+    const { data, error } = await db.rpc('get_most_favorited', {
+        p_content_type: type,
+        p_limit: limit
     });
-    
-    const sorted = Object.entries(counts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, limit)
-        .map(([id, count]) => ({
-            ...catalogMap[id],
-            fav_count: count
-        }));
-    
-    return { data: sorted, error: null };
+
+    return { data: data || [], error };
 }
 
-async function fetchMostLiked(limit = 10) {
+async function fetchMostLiked(limit = 10, type = null) {
     const db = getSupabase();
     if (!db) return { data: [], error: 'Supabase não inicializado' };
-    
-    const { data, error } = await db
-        .from('likes')
-        .select('catalog_id, catalog!inner(title, poster, content_type, release_year)')
-        .order('created_at', { ascending: false })
-        .limit(limit * 10);
-    
-    if (error) return { data: [], error };
-    
-    const counts = {};
-    const catalogMap = {};
-    (data || []).forEach(l => {
-        if (!counts[l.catalog_id]) {
-            counts[l.catalog_id] = 0;
-            catalogMap[l.catalog_id] = l.catalog;
-        }
-        counts[l.catalog_id]++;
+
+    const { data, error } = await db.rpc('get_most_liked', {
+        p_content_type: type,
+        p_limit: limit
     });
-    
-    const sorted = Object.entries(counts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, limit)
-        .map(([id, count]) => ({
-            ...catalogMap[id],
-            like_count: count
-        }));
-    
-    return { data: sorted, error: null };
+
+    return { data: data || [], error };
 }
 
-async function fetchMostDisliked(limit = 10) {
+async function fetchMostDisliked(limit = 10, type = null) {
     const db = getSupabase();
     if (!db) return { data: [], error: 'Supabase não inicializado' };
-    
-    const { data, error } = await db
-        .from('dislikes')
-        .select('catalog_id, catalog!inner(title, poster, content_type, release_year)')
-        .order('created_at', { ascending: false })
-        .limit(limit * 10);
-    
-    if (error) return { data: [], error };
-    
-    const counts = {};
-    const catalogMap = {};
-    (data || []).forEach(d => {
-        if (!counts[d.catalog_id]) {
-            counts[d.catalog_id] = 0;
-            catalogMap[d.catalog_id] = d.catalog;
-        }
-        counts[d.catalog_id]++;
+
+    const { data, error } = await db.rpc('get_most_disliked', {
+        p_content_type: type,
+        p_limit: limit
     });
-    
-    const sorted = Object.entries(counts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, limit)
-        .map(([id, count]) => ({
-            ...catalogMap[id],
-            dislike_count: count
-        }));
-    
-    return { data: sorted, error: null };
+
+    return { data: data || [], error };
 }
 
 async function fetchLatestContent(limit = 10) {
