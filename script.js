@@ -70,17 +70,9 @@ async function renderHome() {
         <div class="page home-page">
             <div class="home-grid">
                 <div class="home-column">
-                    <div class="home-card" id="continue-watching-card" style="display:none">
-                        <h2 class="card-title">Continuar assistindo</h2>
-                        <div class="catalog-grid" id="continue-grid"></div>
-                    </div>
                     <div class="home-card" id="latest-section-card" style="display:none">
                         <h2 class="card-title">Últimas Atualizações</h2>
                         <div class="catalog-grid" id="latest-grid"></div>
-                    </div>
-                    <div class="home-card" id="most-watched-section-card" style="display:none">
-                        <h2 class="card-title">Mais Assistidos</h2>
-                        <div class="catalog-grid" id="most-watched-grid"></div>
                     </div>
                 </div>
                 <div class="home-column">
@@ -96,6 +88,12 @@ async function renderHome() {
                         <h2 class="card-title">Mais Curtidos</h2>
                         <div class="catalog-grid" id="most-liked-grid"></div>
                     </div>
+                </div>
+                <div class="home-column">
+                    <div class="home-card" id="most-watched-section-card" style="display:none">
+                        <h2 class="card-title">Mais Assistidos</h2>
+                        <div class="catalog-grid" id="most-watched-grid"></div>
+                    </div>
                     <div class="home-card" id="most-disliked-section-card" style="display:none">
                         <h2 class="card-title">Mais Não-Gostados</h2>
                         <div class="catalog-grid" id="most-disliked-grid"></div>
@@ -104,56 +102,6 @@ async function renderHome() {
             </div>
         </div>
     `;
-
-    const { data: progress } = await fetchWatchProgress(user.id);
-    const continueCard = document.getElementById('continue-watching-card');
-    const continueGrid = document.getElementById('continue-grid');
-
-    if (progress && progress.length > 0) {
-        continueCard.style.display = '';
-        const watchedIds = new Set();
-        const favIds = new Set();
-        const likeIds = new Set();
-        const dislikeIds = new Set();
-        const watchlistIds = new Set();
-        if (user) {
-            const { data: watchedData } = await fetchWatched(user.id);
-            watchedData.forEach(w => watchedIds.add(w.catalog_id));
-            const { data: favData } = await fetchFavorites(user.id);
-            favData.forEach(f => favIds.add(f.catalog_id));
-            const { data: likeData } = await fetchLikes(user.id);
-            likeData.forEach(l => likeIds.add(l.catalog_id));
-            const { data: dislikeData } = await fetchDislikes(user.id);
-            dislikeData.forEach(d => dislikeIds.add(d.catalog_id));
-            const { data: watchlistData } = await fetchWatchlist(user.id);
-            watchlistData.forEach(w => watchlistIds.add(w.catalog_id));
-        }
-        continueGrid.innerHTML = progress.map(p => {
-            const watched = watchedIds.has(p.catalog_id);
-            const favorited = favIds.has(p.catalog_id);
-            const liked = likeIds.has(p.catalog_id);
-            const disliked = dislikeIds.has(p.catalog_id);
-            const watchlisted = watchlistIds.has(p.catalog_id);
-            const reactionIcon = disliked ? 'dislike' : liked ? 'like' : null;
-            const reactionClass = disliked ? 'reaction-badge dislike' : 'reaction-badge';
-            return `
-            <div class="content-card" onclick="navigate('#/assistir/${p.episode_id ? 'episode' : 'movie'}/${p.episode_id || p.catalog_id}')">
-                <div class="poster-wrapper">
-                    <img src="${p.catalog?.poster || ''}" alt="${p.catalog?.title || ''}" loading="lazy">
-                    ${watched ? `<div class="watched-badge">${getIcon('check', 16)}</div>` : ''}
-                    ${favorited ? `<div class="fav-badge">${getIcon('star', 16)}</div>` : ''}
-                    ${reactionIcon ? `<div class="${reactionClass}">${getIcon(reactionIcon, 16)}</div>` : ''}
-                    ${watchlisted ? `<div class="watchlist-badge">${getIcon('plus', 16)}</div>` : ''}
-                    <div class="progress-bar"><div class="progress-fill" style="width:${(p.current_time_seconds / p.duration_seconds) * 100}%"></div></div>
-                </div>
-                <div class="content-info">
-                    <h4>${p.catalog?.title || ''}</h4>
-                    ${p.episode ? `<span class="content-meta">T${p.episode.season_number} E${p.episode.episode_number}</span>` : ''}
-                </div>
-            </div>
-        `;
-        }).join('');
-    }
 
     // Carregar Últimas Atualizações
     const latestCard = document.getElementById('latest-section-card');
@@ -466,10 +414,21 @@ async function renderHome() {
     onAuthStateChange(async (event, session) => {
         if (event === 'SIGNED_OUT') {
             navigate('#/login');
-        } else if (event === 'SIGNED_IN') {
+        } else if (event === 'SIGNED_IN' && window.location.hash === '#/login') {
             await handleRoute();
         }
     });
 
     initRouter();
+
+    // Habilitar rolagem horizontal com scroll do mouse nos cards da home
+    document.addEventListener('wheel', (e) => {
+        const target = e.target.closest('.home-card .catalog-grid');
+        if (target) {
+            if (e.deltaY !== 0) {
+                e.preventDefault();
+                target.scrollLeft += e.deltaY;
+            }
+        }
+    }, { passive: false });
 })();
